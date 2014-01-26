@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>org.virtualbox.custom.vboxd</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>%(HOME)s/Library/Application Support/org.virtualbox.custom.vboxd/bin/vboxd</string>
+    </array>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>%(HOME)s/Library/Application Support/org.virtualbox.custom.vboxd/var/log/vboxd.out</string>
+    <key>StandardErrorPath</key>
+    <string>%(HOME)s/Library/Application Support/org.virtualbox.custom.vboxd/var/log/vboxd.err</string>
+</dict>
+</plist>
+

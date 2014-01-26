@@ -1,0 +1,16 @@
+# Mac-specific files
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+
+# Thumbnails
+._*
+
+# Files that might appear on external disk
+.Spotlight-V100
+.Trashes
+
+# Sublime Text files
+*.sublime-project
+*.sublime-workspace

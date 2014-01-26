@@ -1,0 +1,144 @@
+#!/bin/bash
+#############################################################################
+# vboxd: VirtualBox Helper Launch Agent
+# --------------------------------------------------------------------------
+# This script automatically starts specified VMs on startup and stops all
+# running VMs on termination.
+#
+# Author: Frank Shaka <frankshaka@gmail.com>
+# Copyright: Frank Shaka, 2014. All rights reserved.
+# Version: 1.0.0
+####
+
+VBM="/usr/bin/VBoxManage"
+START_CONFIG_FILE="$HOME/Library/Application Support/org.virtualbox.custom.vboxd/etc/vboxd-start.conf"
+SLEEP_PID=
+VERBOSE=
+
+function _log {
+    if [ -n "$VERBOSE" ]; then
+        echo $@
+    fi
+    logger $@
+}
+
+function start_vms {
+    _log "[vboxd] Starting VMs..."
+
+    # Read content of 'vboxd-start.conf' line by line.
+    cat "$START_CONFIG_FILE" | while read LINE; do
+        case "$LINE" in
+            \#*)
+                # Ignore comments.
+                ;;
+            *)
+                # Trim heading and trailing spaces.
+                TYPE_NAME=`echo "$LINE" | sed -e "s/^ *//g" -e "s/ *$//g"`
+                START_TYPE=
+                VM_NAME=
+                case "$TYPE_NAME" in
+                    headless*)
+                        START_TYPE="headless"
+                        VM_NAME=`echo "$TYPE_NAME" | cut -c 10- | sed -e "s/^ *//g" -e "s/ *$//g"`
+                        ;;
+                    gui*)
+                        START_TYPE="gui"
+                        VM_NAME=`echo "$TYPE_NAME" | cut -c 5- | sed -e "s/^ *//g" -e "s/ *$//g"`
+                        ;;
+                    vrdp*)
+                        START_TYPE="vrdp"
+                        VM_NAME=`echo "$TYPE_NAME" | cut -c 6- | sed -e "s/^ *//g" -e "s/ *$//g"`
+                        ;;
+                    *)
+                        START_TYPE="headless"
+                        VM_NAME="$TYPE_NAME"
+                        ;;
+                esac
+
+                # Skip empty lines.
+                if [ -n "$VM_NAME" ]; then
+                    _log "[vboxd] Starting VM '$VM_NAME'..."
+
+                    # Start VM in headless mode.
+                    $VBM startvm "$VM_NAME" --type "$START_TYPE" > /dev/null 2>&1
+
+                    _log "[vboxd] VM '$VM_NAME' started."
+                fi
+                ;;
+        esac
+    done
+
+    _log "[vboxd] VMs started."
+}
+
+function stop_vms {
+    _log "[vboxd] Stopping VMs..."
+
+    # Retrieve a list of all running VM names.
+    RUNNING_VMS=`$VBM list runningvms | cut -d \" -f 2`
+
+    # Go through the list line by line.
+    echo "$RUNNING_VMS" | while read LINE; do
+        VM_NAME=$LINE
+
+        # Skip empty lines.
+        if [ -n "$VM_NAME" ]; then
+            _log "[vboxd] Stopping VM '$VM_NAME'..."
+
+            # Stop the VM and save its state.
+            $VBM controlvm "$VM_NAME" savestate > /dev/null 2>&1
+
+            _log "[vboxd] VM '$VM_NAME' stopped."
+        fi
+    done
+
+    _log "[vboxd] VMs stopped."
+}
+
+function on_term {
+    _log "[vboxd] Signal $1 received."
+
+    # Have to kill the last 'sleep' process that we started.
+    [[ $SLEEP_PID ]] && kill $SLEEP_PID
+
+    # Stop and save all VMs.
+    stop_vms
+
+    _log "[vboxd] Shut down."
+
+    exit 0
+}
+
+# Use '-v' option to print logs to stdout.
+if [ "$1" = "-v" ]; then
+    VERBOSE="VERBOSE"
+    shift
+fi
+
+case "$1" in
+    start)
+        start_vms
+        exit 0
+        ;;
+    stop)
+        stop_vms
+        ;;
+    *)
+        # Default action - launch a launchd agent process.
+        _log "[vboxd] Launching..."
+
+        # Listen for termination signals.
+        trap on_term SIGHUP SIGINT SIGTERM
+
+        # Start all VMs that's configured in 'vboxd-start.conf'.
+        start_vms
+
+        _log "[vboxd] Launched. Now sleep until shut down..."
+
+        # Sleep year by year.
+        while true; do
+            sleep 31536000 & SLEEP_PID=$!
+            wait
+        done
+        ;;
+esac
